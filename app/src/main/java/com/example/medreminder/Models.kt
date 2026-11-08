@@ -132,7 +132,8 @@ data class Disease(
     val name: String,
     val doctor: String,
     val date: String,
-    val images: List<String>
+    val images: List<String>,
+    val enabled: Boolean = true // রোগের সুইচ: বন্ধ থাকলে এই রোগের কোনো ঔষধ আসবে না
 ) {
     fun toJson(): JSONObject {
         val o = JSONObject()
@@ -143,6 +144,7 @@ data class Disease(
         val arr = JSONArray()
         images.forEach { arr.put(it) }
         o.put("images", arr)
+        o.put("enabled", enabled)
         return o
     }
 
@@ -154,11 +156,16 @@ data class Disease(
                 name = o.getString("name"),
                 doctor = o.optString("doctor", ""),
                 date = o.optString("date", ""),
-                images = List(im.length()) { i -> im.getString(i) }
+                images = List(im.length()) { i -> im.getString(i) },
+                enabled = o.optBoolean("enabled", true) // পুরোনো ডেটায় সুইচ চালু ধরা হয়
             )
         }
     }
 }
+
+// রোগের সুইচ চালু কিনা (রোগ ছাড়া ঔষধ বা অজানা রোগ হলে চালু ধরা হয়)
+fun AppData.isDiseaseOn(diseaseId: String): Boolean =
+    diseases.firstOrNull { it.id == diseaseId }?.enabled ?: true
 
 data class LogEntry(
     val time: Long,

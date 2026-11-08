@@ -44,9 +44,9 @@ object Reminders {
 
     fun allSlotKeys(d: AppData): List<String> = d.medicines.flatMap { it.timings }.distinct()
 
-    // সাইলেন্ট করা ঔষধ কোথাও আসবে না (নোটিফিকেশন, আজকের তালিকা)
+    // সাইলেন্ট করা ঔষধ এবং বন্ধ করা রোগের ঔষধ কোথাও আসবে না (নোটিফিকেশন, আজকের তালিকা, widget)
     fun medsFor(d: AppData, key: String, date: LocalDate): List<Medicine> =
-        d.medicines.filter { !it.muted && it.timings.contains(key) && it.inCourseOn(date) }
+        d.medicines.filter { !it.muted && d.isDiseaseOn(it.diseaseId) && it.timings.contains(key) && it.inCourseOn(date) }
 
     fun medsDue(d: AppData, key: String, date: LocalDate): List<Medicine> = medsFor(d, key, date)
 
@@ -327,6 +327,19 @@ object Reminders {
             setAlarm(ctx, millis, alarmPi(ctx, key, 0, ""))
         }
         MedWidget.updateAll(ctx)
+    }
+
+    // রোগের সুইচ বদলালে: যে বেলায় আর কোনো ঔষধ নেই তার নোটিফিকেশন ও পুনরাবৃত্তি বন্ধ, widget নতুন করে আঁকা
+    fun refreshAfterChange(ctx: Context) {
+        val d = Store.data
+        val today = LocalDate.now()
+        for (key in allSlotKeys(d)) {
+            if (medsDue(d, key, today).isEmpty()) {
+                cancelNotif(ctx, key)
+                cancelNag(ctx, key)
+            }
+        }
+        scheduleAll(ctx)
     }
 
     fun cancelNag(ctx: Context, key: String) {

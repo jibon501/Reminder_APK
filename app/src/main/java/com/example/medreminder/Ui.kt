@@ -404,8 +404,12 @@ fun MedsScreen(onNew: (String) -> Unit, onEdit: (Medicine) -> Unit) {
                     val n = d.medicines.count { it.diseaseId == ds.id }
                     Button(
                         onClick = { selRaw = ds.id; open = emptySet() },
+                        colors = if (ds.enabled) androidx.compose.material3.ButtonDefaults.buttonColors()
+                        else androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.outline
+                        ),
                         modifier = Modifier.fillMaxWidth().height(52.dp)
-                    ) { Text(diseaseMedTitle(ds.name) + " (" + bn(n) + ")", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                    ) { Text(diseaseMedTitle(ds.name) + " (" + bn(n) + ")" + if (ds.enabled) "" else " • বন্ধ", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
                 }
                 if (others.isNotEmpty()) {
                     item {
@@ -1068,6 +1072,7 @@ fun rememberDiseaseExporter(): (Disease) -> Unit {
 
 @Composable
 fun DiseasesScreen(onNew: () -> Unit, onEdit: (Disease) -> Unit, onAddMed: (Disease) -> Unit) {
+    val ctx = LocalContext.current
     val d = Store.data
     var listFor by remember { mutableStateOf<Disease?>(null) }
     listFor?.let { PurchaseListDialog(it) { listFor = null } }
@@ -1097,15 +1102,33 @@ fun DiseasesScreen(onNew: () -> Unit, onEdit: (Disease) -> Unit, onAddMed: (Dise
                 item { Text("এখনও কোনো রোগ নেই।", modifier = Modifier.padding(top = 8.dp)) }
             }
             items(d.diseases.reversed(), key = { it.id }) { ds ->
-                Card(onClick = { onEdit(ds) }, modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    onClick = { onEdit(ds) },
+                    modifier = Modifier.fillMaxWidth().graphicsLayer { alpha = if (ds.enabled) 1f else 0.55f }
+                ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            ds.name,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        // রোগের নাম মাঝে, ডানে চালু/বন্ধ সুইচ
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Spacer(Modifier.width(52.dp))
+                            Text(
+                                ds.name + if (ds.enabled) "" else " (বন্ধ)",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = ds.enabled,
+                                onCheckedChange = { on ->
+                                    Store.update(ctx) { st ->
+                                        st.copy(diseases = st.diseases.map { if (it.id == ds.id) it.copy(enabled = on) else it })
+                                    }
+                                    Reminders.refreshAfterChange(ctx)
+                                    toast(ctx, if (on) "রোগ চালু হয়েছে" else "রোগ বন্ধ হয়েছে")
+                                },
+                                modifier = Modifier.width(52.dp)
+                            )
+                        }
                         Text("তারিখ: " + prettyDate(ds.date))
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { onAddMed(ds) }, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp), modifier = Modifier.weight(1f)) { Text("ঔষধ +", maxLines = 1, fontSize = 13.sp) }

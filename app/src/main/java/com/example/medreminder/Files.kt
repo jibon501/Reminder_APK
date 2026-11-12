@@ -2,15 +2,23 @@ package com.example.medreminder
 
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.DocumentsContract
+import android.provider.MediaStore
+import androidx.activity.result.contract.ActivityResultContracts
 import android.widget.Toast
 import androidx.core.content.FileProvider
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -70,6 +78,47 @@ fun pickDate(ctx: Context, initial: String, onPicked: (String) -> Unit) {
         { _, y, m, day -> onPicked(LocalDate.of(y, m + 1, day).toString()) },
         d.year, d.monthValue - 1, d.dayOfMonth
     ).show()
+}
+
+// ব্যাকআপের ডিফল্ট ফোল্ডার: Documents/ঔষধের রিমাইন্ডার
+const val BACKUP_FOLDER = "ঔষধের রিমাইন্ডার"
+
+// ফাইল-পিকার ছাড়াই সরাসরি Documents/ঔষধের রিমাইন্ডার ফোল্ডারে ব্যাকআপ সেভ করে (ফোল্ডার না থাকলে নিজে বানায়)
+fun backupToDefaultFolder(ctx: Context): Boolean {
+    return try {
+        val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"))
+        val name = "medicine-backup-$stamp.zip"
+        val uri: Uri? = if (Build.VERSION.SDK_INT >= 29) {
+            val v = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.MIME_TYPE, "application/zip")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOCUMENTS + "/" + BACKUP_FOLDER)
+            }
+            ctx.contentResolver.insert(MediaStore.Files.getContentUri("external"), v)
+        } else {
+            val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), BACKUP_FOLDER)
+            dir.mkdirs()
+            Uri.fromFile(File(dir, name))
+        }
+        uri != null && exportZip(ctx, uri)
+    } catch (e: Exception) {
+        false
+    }
+}
+
+// রিস্টোরের ফাইল-পিকার সরাসরি ব্যাকআপ ফোল্ডারে খোলে
+class OpenBackupDocument : ActivityResultContracts.OpenDocument() {
+    override fun createIntent(context: Context, input: Array<String>): Intent {
+        val i = super.createIntent(context, input)
+        i.putExtra(
+            DocumentsContract.EXTRA_INITIAL_URI,
+            DocumentsContract.buildDocumentUri(
+                "com.android.externalstorage.documents",
+                "primary:Documents/" + BACKUP_FOLDER
+            )
+        )
+        return i
+    }
 }
 
 fun exportZip(ctx: Context, uri: Uri): Boolean {

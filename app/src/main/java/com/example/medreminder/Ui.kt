@@ -1482,14 +1482,7 @@ fun SettingsScreen() {
             action()
         }
     }
-    val exporter = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/zip")
-    ) { uri: Uri? ->
-        if (uri != null) {
-            if (exportZip(ctx, uri)) toast(ctx, "ব্যাকআপ সেভ হয়েছে") else toast(ctx, "ব্যাকআপ করা যায়নি")
-        }
-    }
-    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+    val importer = rememberLauncherForActivityResult(OpenBackupDocument()) { uri: Uri? ->
         if (uri != null) {
             if (importZip(ctx, uri)) toast(ctx, "রিস্টোর সম্পন্ন") else toast(ctx, "রিস্টোর করা যায়নি")
         }
@@ -1685,7 +1678,12 @@ fun SettingsScreen() {
 
         // ব্যাকআপ ও রিস্টোর হেল্পের ঠিক উপরে
         OutlinedButton(
-            onClick = { withStorage { exporter.launch("medicine-backup-" + LocalDate.now().toString() + ".zip") } },
+            onClick = {
+                withStorage {
+                    if (backupToDefaultFolder(ctx)) toast(ctx, "ব্যাকআপ সেভ হয়েছে: Documents/" + BACKUP_FOLDER)
+                    else toast(ctx, "ব্যাকআপ করা যায়নি")
+                }
+            },
             modifier = Modifier.fillMaxWidth()
         ) { Text("☁️ ব্যাকআপ") }
         OutlinedButton(

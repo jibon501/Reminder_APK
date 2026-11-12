@@ -50,7 +50,9 @@ class MedWidget : AppWidgetProvider() {
             } else {
                 rv.setViewVisibility(R.id.w_card, View.VISIBLE)
                 rv.setTextViewText(R.id.w_title, "🔔 " + Slots.label(key))
-                rv.setTextViewText(R.id.w_lines, Reminders.numberedLines(meds).joinToString("\n"))
+                // ঔষধের নামগুলো পাশাপাশি (লাইন ভরে গেলে পরের লাইনে), প্রতিটা "নাম — ডোজ" একসাথে থাকে
+                val line = meds.joinToString("   •   ") { it.shortName() + "\u00A0—\u00A0" + it.doseLabel() }
+                rv.setTextViewText(R.id.w_lines, line)
 
             }
             mgr.updateAppWidget(id, rv)

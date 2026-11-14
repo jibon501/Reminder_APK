@@ -17,7 +17,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -83,11 +82,40 @@ fun pickDate(ctx: Context, initial: String, onPicked: (String) -> Unit) {
 // ব্যাকআপের ডিফল্ট ফোল্ডার: Documents/ঔষধের রিমাইন্ডার
 const val BACKUP_FOLDER = "ঔষধের রিমাইন্ডার"
 
+// ব্যাকআপ ফোল্ডারে এই নামে (base দিয়ে শুরু) আগে থেকে যে ফাইলগুলো আছে তাদের নাম
+private fun existingBackupNames(ctx: Context, base: String): Set<String> {
+    val out = mutableSetOf<String>()
+    try {
+        if (Build.VERSION.SDK_INT >= 29) {
+            ctx.contentResolver.query(
+                MediaStore.Files.getContentUri("external"),
+                arrayOf(MediaStore.MediaColumns.DISPLAY_NAME),
+                MediaStore.MediaColumns.RELATIVE_PATH + " = ? AND " + MediaStore.MediaColumns.DISPLAY_NAME + " LIKE ?",
+                arrayOf(Environment.DIRECTORY_DOCUMENTS + "/" + BACKUP_FOLDER + "/", "$base%"),
+                null
+            )?.use { c -> while (c.moveToNext()) out.add(c.getString(0)) }
+        } else {
+            val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), BACKUP_FOLDER)
+            dir.list()?.forEach { out.add(it) }
+        }
+    } catch (e: Exception) {
+        // তালিকা না পেলে ডিফল্ট নামেই চলবে
+    }
+    return out
+}
+
 // ফাইল-পিকার ছাড়াই সরাসরি Documents/ঔষধের রিমাইন্ডার ফোল্ডারে ব্যাকআপ সেভ করে (ফোল্ডার না থাকলে নিজে বানায়)
 fun backupToDefaultFolder(ctx: Context): Boolean {
     return try {
-        val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm"))
-        val name = "medicine-backup-$stamp.zip"
+        // নাম: "রিমাইন্ডার ব্যাকাপ-dd-M-yy"; একই দিনে আবার হলে শেষে ক্রম বসে (-2, -3 ...)
+        val base = "রিমাইন্ডার ব্যাকাপ-" + LocalDate.now().format(DateTimeFormatter.ofPattern("dd-M-yy"))
+        val taken = existingBackupNames(ctx, base)
+        var n = 1
+        var name = "$base.zip"
+        while (taken.contains(name)) {
+            n++
+            name = "$base-$n.zip"
+        }
         val uri: Uri? = if (Build.VERSION.SDK_INT >= 29) {
             val v = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, name)
